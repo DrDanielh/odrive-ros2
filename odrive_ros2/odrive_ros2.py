@@ -99,7 +99,7 @@ class OdriveROS2(Node):
     AXIS_STATE_ENCODER_DIR_FIND = 10
     """
     def _request_state_callback(self, request: AxisState.Request, response: AxisState.Response):
-        if self._is_driver_ready():
+        if self._is_odrive_ready():
             if request.axis == 0:
                 self._odrive.axis0.requested_state = request.state
                 self._odrive.axis0.watchdog_feed()
@@ -125,7 +125,7 @@ class OdriveROS2(Node):
         self._odrive.axis0.controller.input_vel = msg.data
 
     def _axis1_vel_ref_callback(self, msg):
-        self._odrive.axis0.controller.input_vel = msg.data
+        self._odrive.axis1.controller.input_vel = msg.data
 
 
 def main(args=None):
