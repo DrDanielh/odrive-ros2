@@ -16,7 +16,7 @@ class OdriveROS2(Node):
         super().__init__('odrive_ros2')
         self.get_logger().info('Instantiated odrive_ros2 node.')
         
-        # Declaring variables
+        # Declaring objects
         self._odrive = None
         self._axis0_vel_ref_subscriber = None
         self._axis1_vel_ref_subscriber = None
@@ -67,7 +67,7 @@ class OdriveROS2(Node):
         self._odrive.axis1.requested_state = 3
         self._odrive.axis1.watchdog_feed()
 
-        while (self._odrive.axis0.current_state != 1) and (self._odrive.axis1.current_state != 1):
+        while (self._odrive.axis0.current_state != 1) or (self._odrive.axis1.current_state != 1):
             sleep(0.5)
         self.get_logger().info('Calibration sequence complete.')
 
