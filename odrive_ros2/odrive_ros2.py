@@ -24,7 +24,6 @@ class OdriveROS2(Node):
         self._instantiate_services()
         self._instantiate_subscribers()
         if self._find_odrive():
-            #self._run_startup_sequence()
             self._run_calibration_sequence()
 
     def _instantiate_services(self):
@@ -52,17 +51,6 @@ class OdriveROS2(Node):
             self.get_logger().info('Searching for ODrives timed out.')
             self.get_logger().info('No ODrives found.')
             return False
-
-    def _run_startup_sequence(self):
-        self.get_logger().info('Running startup sequence..')
-        self._odrive.axis0.requested_state = 2
-        self._odrive.axis0.watchdog_feed()
-        self._odrive.axis1.requested_state = 2
-        self._odrive.axis1.watchdog_feed()
-
-        while (self._odrive.axis0.current_state != 1) or (self._odrive.axis1.current_state != 1):
-            sleep(0.5)
-        self.get_logger().info('Startup sequence complete.')
 
     def _run_calibration_sequence(self):
         self.get_logger().info('Running calibration sequence..')
