@@ -24,7 +24,7 @@ class OdriveROS2(Node):
         self._instantiate_services()
         self._instantiate_subscribers()
         if self._find_odrive():
-            self._run_startup_sequence()
+            #self._run_startup_sequence()
             self._run_calibration_sequence()
 
     def _instantiate_services(self):
@@ -44,11 +44,12 @@ class OdriveROS2(Node):
 
     def _find_odrive(self):
         self.get_logger().info('Searching for odrives..')
-        self._odrive = odrive.find_any()
+        self._odrive = odrive.find_any(timeout=5.0)
         if self._odrive:
             self.get_logger().info('ODrive connected.')
             return True
         else:
+            self.get_logger().info('Searching for ODrives timed out.')
             self.get_logger().info('No ODrives found.')
             return False
 
@@ -58,6 +59,9 @@ class OdriveROS2(Node):
         self._odrive.axis0.watchdog_feed()
         self._odrive.axis1.requested_state = 2
         self._odrive.axis1.watchdog_feed()
+
+        while (self._odrive.axis0.current_state != 1) or (self._odrive.axis1.current_state != 1):
+            sleep(0.5)
         self.get_logger().info('Startup sequence complete.')
 
     def _run_calibration_sequence(self):
@@ -72,7 +76,7 @@ class OdriveROS2(Node):
         self.get_logger().info('Calibration sequence complete.')
 
     def _is_odrive_ready(self):
-        self.get_logger().info('Checking if odrive is ready..')
+        self.get_logger().info('Checking if ODrive is ready..')
         if self._odrive:
             try:
                 if self._odrive.user_config_loaded:
@@ -98,7 +102,7 @@ class OdriveROS2(Node):
     AXIS_STATE_LOCKIN_SPIN = 9
     AXIS_STATE_ENCODER_DIR_FIND = 10
     """
-    def _request_state_callback(self, request: AxisState.Request, response: AxisState.Response):
+    def _request_state_callback(self, request, response):
         if self._is_odrive_ready():
             if request.axis == 0:
                 self._odrive.axis0.requested_state = request.state
