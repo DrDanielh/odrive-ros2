@@ -1,17 +1,33 @@
 # Copyright (c) 2022 Dunder Mifflin, Inc.
 # All rights reserved.
 
+# System imports
 import sys
+from math import pi
 from time import sleep
 
+# ROS 2 imports
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
 
+# ODrive imports
 import odrive
 from odrive_interfaces.srv import AxisState
 
+
 class OdriveROS2(Node):
+    # Parameters
+    _request_state_topic = 'request_state'
+    _axis0_vel_ref_topic = 'axis0/vel_ref'
+    _axis1_vel_ref_topic = 'axis1/vel_ref'
+    _axis0_pos_topic = 'axis0/pos'
+    _axis0_vel_topic = 'axis0/vel'
+    _axis1_pos_topic = 'axis1/pos'
+    _axis1_vel_topic = 'axis1/vel'
+    _odrive_timeout = 5.0  # [s]
+    _feedback_timer_rate = 10  # [hz]
+
     def __init__(self):
         super().__init__('odrive_ros2')
         self.get_logger().info('Instantiated odrive_ros2 node.')
@@ -20,30 +36,48 @@ class OdriveROS2(Node):
         self._odrive = None
         self._axis0_vel_ref_subscriber = None
         self._axis1_vel_ref_subscriber = None
+        self._axis0_pos_publisher = None
+        self._axis0_vel_publisher = None
+        self._axis1_pos_publisher = None
+        self._axis1_vel_publisher = None
 
+        # Instantiate objects
         self._instantiate_services()
         self._instantiate_subscribers()
+        self._instantiate_publishers()
+
+        # Create feedback timer
+        self._feedback_timer = self.create_timer(1.0/self._feedback_timer_rate,
+                                                 self._feedback_timer_callback)
+
+        # Find ODrive
         if self._find_odrive():
             self._run_calibration_sequence()
 
     def _instantiate_services(self):
         self.request_state_service = self.create_service(AxisState,
-                                                         'request_state',
+                                                         self._request_state_topic,
                                                          self._request_state_callback)
 
     def _instantiate_subscribers(self):
         self._axis0_vel_ref_subscriber = self.create_subscription(Float32,
-                                                                  'axis0_vel_ref',
+                                                                  self._axis0_vel_ref_topic,
                                                                   self._axis0_vel_ref_callback,
                                                                   10)
         self._axis1_vel_ref_subscriber = self.create_subscription(Float32,
-                                                                  'axis1_vel_ref',
+                                                                  self._axis1_vel_ref_topic,
                                                                   self._axis1_vel_ref_callback,
                                                                   10)
+                                                                
+    def _instantiate_publishers(self):
+        self._axis0_pos_publisher = self.create_publisher(Float32, self._axis0_pos_topic, 1)
+        self._axis0_vel_publisher = self.create_publisher(Float32, self._axis0_vel_topic, 1)
+        self._axis1_pos_publisher = self.create_publisher(Float32, self._axis1_pos_topic, 1)
+        self._axis1_vel_publisher = self.create_publisher(Float32, self._axis1_vel_topic, 1)  
 
     def _find_odrive(self):
         self.get_logger().info('Searching for odrives..')
-        self._odrive = odrive.find_any(timeout=5.0)
+        self._odrive = odrive.find_any(timeout=self._odrive_timeout)
         if self._odrive:
             self.get_logger().info('ODrive connected.')
             return True
@@ -53,15 +87,16 @@ class OdriveROS2(Node):
             return False
 
     def _run_calibration_sequence(self):
-        self.get_logger().info('Running calibration sequence..')
-        self._odrive.axis0.requested_state = 3
-        self._odrive.axis0.watchdog_feed()
-        self._odrive.axis1.requested_state = 3
-        self._odrive.axis1.watchdog_feed()
+        if (self._odrive.axis0.current_state != 1) and (self._odrive.axis1.current_state != 1):
+            self.get_logger().info('Running calibration sequence..')
+            self._odrive.axis0.requested_state = 3
+            self._odrive.axis0.watchdog_feed()
+            self._odrive.axis1.requested_state = 3
+            self._odrive.axis1.watchdog_feed()
 
-        while (self._odrive.axis0.current_state != 1) or (self._odrive.axis1.current_state != 1):
-            sleep(0.5)
-        self.get_logger().info('Calibration sequence complete.')
+            while (self._odrive.axis0.current_state != 1) or (self._odrive.axis1.current_state != 1):
+                sleep(0.5)
+            self.get_logger().info('Calibration sequence complete.')
 
     def _is_odrive_ready(self):
         self.get_logger().info('Checking if ODrive is ready..')
@@ -114,10 +149,25 @@ class OdriveROS2(Node):
         return response
 
     def _axis0_vel_ref_callback(self, msg):
-        self._odrive.axis0.controller.input_vel = msg.data
+        self._odrive.axis0.controller.input_vel = msg.data/(2*pi)  # convert from rad/s to turn/s
 
     def _axis1_vel_ref_callback(self, msg):
-        self._odrive.axis1.controller.input_vel = msg.data
+        self._odrive.axis1.controller.input_vel = msg.data/(2*pi)  # convert from rad/s to turn/s
+
+    def _feedback_timer_callback(self):
+        msg = Float32()
+        
+        # Axis0 position and velocity
+        msg.data = self._odrive.axis0.encoder.pos_estimate*2*pi  # convert from turn/s to rad/s
+        self._axis0_pos_publisher.publish(msg)
+        msg.data = self._odrive.axis0.encoder.vel_estimate*2*pi  # convert from turn/s to rad/s
+        self._axis0_vel_publisher.publish(msg)
+
+        # Axis1 position and velocity
+        msg.data = self._odrive.axis1.encoder.pos_estimate*2*pi  # convert from turn/s to rad/s
+        self._axis1_pos_publisher.publish(msg)
+        msg.data = self._odrive.axis1.encoder.vel_estimate*2*pi  # convert from turn/s to rad/s
+        self._axis1_vel_publisher.publish(msg)
 
 
 def main(args=None):
