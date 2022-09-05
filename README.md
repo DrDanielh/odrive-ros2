@@ -8,8 +8,8 @@ Node for closed loop velocity control with ODrive.
 * /axis1/vel
 
 ## Subscribers
-* /axis0_vel_ref
-* /axis1_vel_ref
+* /axis0/vel_ref
+* /axis1/vel_ref
 
 ## Services
 * /request_state
