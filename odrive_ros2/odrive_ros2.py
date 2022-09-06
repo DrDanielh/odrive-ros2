@@ -87,7 +87,7 @@ class OdriveROS2(Node):
             return False
 
     def _run_calibration_sequence(self):
-        if (self._odrive.axis0.current_state != 1) and (self._odrive.axis1.current_state != 1):
+        if (not self._odrive.axis0.motor.is_calibrated) or (not self._odrive.axis1.motor.is_calibrated):
             self.get_logger().info('Running calibration sequence..')
             self._odrive.axis0.requested_state = 3
             self._odrive.axis0.watchdog_feed()
